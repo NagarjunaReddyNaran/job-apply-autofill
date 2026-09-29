@@ -6,6 +6,16 @@
 // service worker (passive session/progress tracking).
 
 (function () {
+  // Guard against double-injection: the popup re-injects this script on
+  // every open (see popup.js ensureContentScriptInjected) to recover from
+  // cases where an earlier injection didn't take (or an SPA navigation
+  // swapped out the DOM without a real page load re-triggering our
+  // declarative registration). Running the whole file twice in the same
+  // frame would double up message listeners and mutation observers, so we
+  // bail out early on a repeat injection.
+  if (window.__jobApplyAutofillLoaded) return;
+  window.__jobApplyAutofillLoaded = true;
+
   const isTopFrame = window.self === window.top;
 
   function safeScanSummary() {

@@ -40,11 +40,27 @@
         summary.skipped.push({ label, reason: "no profile value" });
         return;
       }
-      if (field.element.value && field.element.value !== String(rawValue)) {
+
+      const existingRaw = field.element.value || "";
+      // Compare loosely (trim + case-insensitive) so a value the SITE ITSELF
+      // already filled in (e.g. Workday's own "autofill from resume" step)
+      // that's effectively the same as our profile's value counts as
+      // correctly filled, not a mismatch needing review. We still never
+      // overwrite it in that case -- there's no need to, and touching a
+      // field the page already populated risks disrupting its own state.
+      const normalize = (v) => String(v).trim().toLowerCase();
+      if (existingRaw && normalize(existingRaw) !== normalize(rawValue)) {
         window.JobApplyDom.highlight(field.element, "review");
         summary.skipped.push({ label, reason: "existing value present" });
         return;
       }
+      if (existingRaw) {
+        // Already there and already correct -- nothing to write.
+        window.JobApplyDom.highlight(field.element, "filled");
+        summary.filled.push({ label, confidence });
+        return;
+      }
+
       window.JobApplyDom.setNativeValue(field.element, String(rawValue));
       window.JobApplyDom.highlight(field.element, "filled");
       summary.filled.push({ label, confidence });
@@ -108,6 +124,21 @@
         if (field.kind === "file") {
           window.JobApplyDom.highlight(field.element, "review");
           summary.fileFields.push({ label: field.signals.labelText || field.signals.name || "file upload" });
+          continue;
+        }
+
+        if (field.kind === "custom-combobox") {
+          // We can detect these (a <button aria-haspopup="listbox"> style
+          // dropdown, common on Workday and similar ATS UIs) but can't
+          // safely fill them yet -- that would mean simulating opening the
+          // menu and clicking the right option, which is fragile without
+          // knowing the specific widget's DOM behavior. Flag it as a known
+          // field that needs a manual pick, rather than leaving it invisible
+          // (old behavior) or guessing at how to drive it (unsafe).
+          window.JobApplyDom.highlight(field.element, "review");
+          const { semanticField } = window.JobApplyClassifier.classifyField(field.signals);
+          const label = semanticField || field.signals.ariaLabel || field.signals.labelText || field.signals.name || "(custom dropdown)";
+          summary.skipped.push({ label, reason: "custom dropdown widget — please select manually" });
           continue;
         }
 

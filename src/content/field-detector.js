@@ -14,7 +14,16 @@
     const fields = [];
     const radioGroups = new Map(); // name -> [elements]
 
-    const controls = root.querySelectorAll("input, textarea, select, [role='combobox'], [role='radio'], [role='checkbox']");
+    // [aria-haspopup='listbox'] catches custom dropdown buttons (Workday and
+    // other modern ATS UIs commonly render "select"-like fields as a
+    // <button aria-haspopup="listbox"> that opens a floating list, backed by
+    // a hidden input holding the real value — not a native <select> at all.
+    // We can't safely fill these yet (would need to simulate opening the
+    // menu and clicking the right option), but detecting them means they
+    // show up as a flagged field instead of being invisible to the scanner.
+    const controls = root.querySelectorAll(
+      "input, textarea, select, [role='combobox'], [role='radio'], [role='checkbox'], [aria-haspopup='listbox']"
+    );
 
     controls.forEach((el) => {
       try {
@@ -49,6 +58,11 @@
 
         if (el.tagName === "TEXTAREA" || (el.tagName === "INPUT" && !["radio", "checkbox", "file", "submit", "button", "hidden"].includes(type))) {
           fields.push({ kind: "text", element: el, signals: window.JobApplyDom.collectSignals(el) });
+          return;
+        }
+
+        if (el.getAttribute("aria-haspopup") === "listbox") {
+          fields.push({ kind: "custom-combobox", element: el, signals: window.JobApplyDom.collectSignals(el) });
           return;
         }
       } catch (err) {

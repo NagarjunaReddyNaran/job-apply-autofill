@@ -91,6 +91,28 @@ async function sendToFrames(tabId, frameIds, message) {
   return results.filter((r) => r !== null);
 }
 
+// Actively (re-)injects the content script into every frame we have
+// permission for, every time the popup opens. This is deliberately NOT
+// "inject once and trust it stays" — a single-page-app can swap huge parts
+// of its DOM via client-side routing without a real navigation (so our
+// declarative registerContentScripts registration never gets a fresh page
+// load to fire on), and some Chrome "site access" settings (e.g. the
+// extension's access mode set to "On click" in chrome://extensions) only
+// make a granted host permission live for the tab at the moment the
+// toolbar icon is actually clicked — which is exactly when the popup opens.
+// content.js guards itself against double-injection, so calling this when
+// the script is already present is a harmless no-op.
+async function ensureContentScriptInjected(tabId, frameIds) {
+  try {
+    await chrome.scripting.executeScript({
+      target: { tabId, frameIds },
+      files: CONTENT_SCRIPT_FILES
+    });
+  } catch (err) {
+    console.warn("[JobApplyAutofill] content script injection failed:", err);
+  }
+}
+
 // --- Permission gating -----------------------------------------------------
 
 function showPermissionPrompt(show) {
@@ -138,14 +160,7 @@ async function enableOnThisSite() {
     // Inject into the already-open tab right away (dynamic registration only
     // affects future navigations, not the page that's already loaded).
     const frameIds = await getFrameIdsForPatterns(currentFrames, currentPatterns);
-    try {
-      await chrome.scripting.executeScript({
-        target: { tabId: currentTabId, frameIds },
-        files: CONTENT_SCRIPT_FILES
-      });
-    } catch (err) {
-      console.warn("[JobApplyAutofill] immediate injection failed:", err);
-    }
+    await ensureContentScriptInjected(currentTabId, frameIds);
 
     // Remember this origin so future page loads here (multi-page/multi-step
     // applications) auto-inject without asking again.
@@ -289,6 +304,14 @@ async function refreshPopup() {
   }
 
   showPermissionPrompt(false);
+
+  // Permission exists, but don't assume a content script is actually present
+  // in this tab right now (SPA navigation, a restrictive "site access" mode,
+  // or a service worker restart can all leave it missing) — re-inject every
+  // time, since content.js's own guard makes this a no-op if it's already there.
+  const frameIds = await getFrameIdsForPatterns(currentFrames, currentPatterns);
+  await ensureContentScriptInjected(currentTabId, frameIds);
+
   const tab = await getActiveTab();
   if (tab) await loadSessionLine(tab);
   await scanActiveTab();
