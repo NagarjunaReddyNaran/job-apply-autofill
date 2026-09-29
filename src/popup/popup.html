@@ -1,0 +1,39 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8" />
+  <title>JobApply Autofill</title>
+  <link rel="stylesheet" href="popup.css" />
+</head>
+<body>
+  <header>
+    <h1>JobApply Autofill</h1>
+    <div id="profileLine" class="muted">Loading profile…</div>
+  </header>
+
+  <section id="sessionLine" class="muted"></section>
+
+  <section id="counts">
+    <div class="count-row"><span class="dot green"></span><span id="fillableCount">0</span> fields can be filled</div>
+    <div class="count-row"><span class="dot yellow"></span><span id="reviewCount">0</span> fields need review</div>
+    <div class="count-row"><span class="dot gray"></span><span id="unknownCount">0</span> fields unknown</div>
+  </section>
+
+  <div class="actions">
+    <button id="fillBtn" class="primary">Fill Application</button>
+    <button id="scanBtn">Rescan Page</button>
+    <button id="undoBtn">Undo Highlighting</button>
+  </div>
+
+  <div id="resultBox" class="hidden">
+    <h2>Last fill result</h2>
+    <div id="resultSummary"></div>
+  </div>
+
+  <footer>
+    <button id="optionsBtn" class="link">Review Profile / Settings</button>
+  </footer>
+
+  <script src="popup.js"></script>
+</body>
+</html>

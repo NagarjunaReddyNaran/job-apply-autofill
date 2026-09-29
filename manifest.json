@@ -1,0 +1,31 @@
+{
+  "manifest_version": 3,
+  "name": "JobApply Autofill",
+  "version": "0.2.0",
+  "description": "Detects and fills common fields on job application forms. Never auto-submits.",
+  "permissions": ["storage", "scripting", "activeTab", "tabs", "webNavigation"],
+  "host_permissions": ["<all_urls>"],
+  "action": {
+    "default_popup": "src/popup/popup.html",
+    "default_title": "JobApply Autofill"
+  },
+  "background": {
+    "service_worker": "src/background/service-worker.js"
+  },
+  "content_scripts": [
+    {
+      "matches": ["<all_urls>"],
+      "all_frames": true,
+      "js": [
+        "src/content/dom-utils.js",
+        "src/content/field-detector.js",
+        "src/content/field-classifier.js",
+        "src/content/autofill-engine.js",
+        "src/content/mutation-observer.js",
+        "src/content/content.js"
+      ],
+      "run_at": "document_idle"
+    }
+  ],
+  "options_page": "options/options.html"
+}

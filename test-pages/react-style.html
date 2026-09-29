@@ -1,0 +1,47 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8" />
+<title>React-style Controlled Form (Test Page)</title>
+<style>
+  body { font-family: sans-serif; max-width: 500px; margin: 40px auto; }
+  label { display: block; margin-top: 12px; font-size: 13px; }
+  input { width: 100%; padding: 6px; margin-top: 4px; box-sizing: border-box; }
+  .hint { color: #64748b; font-size: 12px; }
+</style>
+</head>
+<body>
+  <h1>Controlled Input Simulation</h1>
+  <p class="hint">
+    This page mimics a React-controlled input: it keeps its own "state" and
+    re-renders the field's value from that state on every keystroke. If the
+    extension just sets <code>el.value = "..."</code> directly (without using
+    the native property setter + dispatching a real "input" event), the value
+    will visibly "snap back" to empty. This is the scenario Feature 4 /
+    "trigger appropriate DOM events" is meant to solve.
+  </p>
+
+  <label for="firstName">First Name
+    <input id="firstName" name="firstName" autocomplete="given-name" />
+  </label>
+  <label for="email">Email
+    <input id="email" name="email" type="email" autocomplete="email" />
+  </label>
+
+  <script>
+    // Simulate a minimal "controlled component": state is the source of
+    // truth, and the DOM is re-synced to state on every input event.
+    const state = { firstName: "", email: "" };
+    function bind(id, key) {
+      const el = document.getElementById(id);
+      el.addEventListener("input", () => {
+        state[key] = el.value;
+        // Re-render from state, exactly like React would on the next tick.
+        if (el.value !== state[key]) el.value = state[key];
+      });
+    }
+    bind("firstName", "firstName");
+    bind("email", "email");
+  </script>
+</body>
+</html>
