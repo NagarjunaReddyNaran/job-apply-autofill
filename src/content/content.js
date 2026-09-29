@@ -18,7 +18,6 @@
           const { semanticField, confidence } = window.JobApplyClassifier.classifyField(field.signals);
           if (semanticField && confidence >= window.JobApplyAutofill.CONFIDENCE_THRESHOLD) fillable++;
         } catch (fieldErr) {
-          // One malformed field shouldn't stop the whole scan.
           console.warn("[JobApplyAutofill] skipped a field during scan:", fieldErr);
         }
       }
@@ -32,8 +31,6 @@
   function notifyBackground() {
     try {
       const scan = safeScanSummary();
-      // sender.frameId is attached automatically by Chrome on the receiving end;
-      // we don't need to (and can't reliably) compute our own frame id here.
       chrome.runtime.sendMessage({
         type: "PAGE_SCANNED",
         url: location.href,
@@ -43,11 +40,9 @@
         isTopFrame
       }).catch(() => {
         // Extension may have been reloaded/updated mid-session ("context invalidated").
-        // Safe to ignore — the next scan or a page reload will recover.
       });
     } catch (err) {
-      // chrome.runtime may be unavailable entirely in rare edge cases (e.g. the
-      // extension was just disabled). Fail silently rather than throwing on the host page.
+      // chrome.runtime may be unavailable entirely in rare edge cases.
     }
   }
 
@@ -100,8 +95,6 @@
     }
   };
 
-  // Initial scan + notify on load, then watch for dynamically added fields.
-  // Wrapped so a failure here never breaks the host page itself.
   try {
     notifyBackground();
     window.JobApplyObserver.observeDynamicFields(notifyBackground, 600);

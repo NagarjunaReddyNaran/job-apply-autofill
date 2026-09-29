@@ -4,15 +4,12 @@
 
 (function () {
   function getLabelText(el) {
-    // 1. <label for="id">
     if (el.id) {
       const forLabel = document.querySelector(`label[for="${CSS.escape(el.id)}"]`);
       if (forLabel) return forLabel.textContent.trim();
     }
-    // 2. Wrapping <label>
     const parentLabel = el.closest("label");
     if (parentLabel) return parentLabel.textContent.replace(el.value || "", "").trim();
-    // 3. aria-labelledby
     const labelledBy = el.getAttribute("aria-labelledby");
     if (labelledBy) {
       const parts = labelledBy
@@ -25,14 +22,11 @@
   }
 
   function getNearbyText(el, maxHops = 3) {
-    // Walk up ancestors a few levels and grab their text minus the field's own subtree,
-    // as a fallback signal when there's no formal <label>.
     let node = el.parentElement;
     let hops = 0;
     const seen = [];
     while (node && hops < maxHops) {
       const clone = node.cloneNode(true);
-      // Remove nested form controls from the clone so we don't pick up sibling field text.
       clone.querySelectorAll("input, textarea, select, button").forEach((n) => n.remove());
       const text = clone.textContent.replace(/\s+/g, " ").trim();
       if (text) seen.push(text);
@@ -56,9 +50,6 @@
     };
   }
 
-  // Sets a value on a native input/textarea/select in a way that frameworks
-  // like React/Vue/Angular will notice, by using the native property setter
-  // and then dispatching input/change events.
   function setNativeValue(el, value) {
     const tag = el.tagName.toLowerCase();
     const proto = tag === "textarea" ? window.HTMLTextAreaElement.prototype
@@ -87,7 +78,6 @@
   }
 
   function highlight(el, kind) {
-    // kind: "filled" | "review" | "unknown"
     el.style.outline = kind === "filled" ? "2px solid #22c55e"
       : kind === "review" ? "2px solid #eab308"
       : "2px dashed #94a3b8";

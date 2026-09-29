@@ -6,7 +6,14 @@ const PROFILE_KEY = "jobapply_profile_v1";
 
 async function getProfile() {
   const result = await chrome.storage.local.get(PROFILE_KEY);
-  if (result[PROFILE_KEY]) return result[PROFILE_KEY];
+  if (result[PROFILE_KEY]) {
+    const profile = result[PROFILE_KEY];
+    // Backfill new collection fields for profiles saved before they existed.
+    if (!Array.isArray(profile.workExperience)) profile.workExperience = [];
+    if (!Array.isArray(profile.education)) profile.education = [];
+    if (!Array.isArray(profile.languages)) profile.languages = [];
+    return profile;
+  }
   const fresh = window.defaultProfile();
   await chrome.storage.local.set({ [PROFILE_KEY]: fresh });
   return fresh;

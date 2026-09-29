@@ -52,7 +52,6 @@
           return;
         }
       } catch (err) {
-        // An unusual/detached element shouldn't stop detection of the rest of the page.
         console.warn("[JobApplyAutofill] skipped an element during detection:", err);
       }
     });

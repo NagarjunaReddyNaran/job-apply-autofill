@@ -36,13 +36,35 @@ function defaultProfile() {
   profile.snippets = {}; // e.g. { whyThisCompany: "..." }
   profile.enableEeoAutofill = false; // explicit opt-in, never inferred
   profile.highlightFields = true;
+
+  // Repeatable history — for Workday-style forms that ask for every prior
+  // role/degree/language as its own numbered block, rather than one flat field.
+  profile.workExperience = [];
+  profile.education = [];
+  profile.languages = [];
+
   return profile;
+}
+
+function emptyWorkExperience() {
+  return { jobTitle: "", company: "", location: "", current: false, startDate: "", endDate: "", description: "" };
+}
+
+function emptyEducationEntry() {
+  return { school: "", degree: "", fieldOfStudy: "" };
+}
+
+function emptyLanguageEntry() {
+  return { language: "", fluent: false, comprehension: "", overall: "", reading: "", speaking: "", writing: "" };
 }
 
 if (typeof window !== "undefined") {
   window.PROFILE_FIELDS = PROFILE_FIELDS;
   window.defaultProfile = defaultProfile;
+  window.emptyWorkExperience = emptyWorkExperience;
+  window.emptyEducationEntry = emptyEducationEntry;
+  window.emptyLanguageEntry = emptyLanguageEntry;
 }
 if (typeof module !== "undefined") {
-  module.exports = { PROFILE_FIELDS, defaultProfile };
+  module.exports = { PROFILE_FIELDS, defaultProfile, emptyWorkExperience, emptyEducationEntry, emptyLanguageEntry };
 }

@@ -1,12 +1,8 @@
 // field-classifier.js
 // Turns a field's collected signals into { semanticField, confidence }.
-// Deterministic keyword matching — no AI/network calls, per the project's
-// "build a reliable deterministic engine first" requirement.
+// Deterministic keyword matching — no AI/network calls.
 
 (function () {
-  // Each semantic field maps to an array of regexes tested against the
-  // combined signal text. Earlier/more specific patterns should be listed
-  // first within a field since we take the best (highest-weight) match.
   const PATTERNS = {
     firstName: [/\bfirst[\s_-]?name\b/i, /\bgiven[\s_-]?name\b/i, /\blegal[\s_-]?first[\s_-]?name\b/i],
     middleName: [/\bmiddle[\s_-]?name\b/i],
@@ -35,7 +31,6 @@
   };
 
   function scoreField(signals) {
-    // Prioritize the strongest, most explicit signals first.
     const weighted = [
       { text: signals.autocomplete, weight: 1.0 },
       { text: signals.name, weight: 0.9 },
