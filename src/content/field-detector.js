@@ -18,9 +18,10 @@
     // other modern ATS UIs commonly render "select"-like fields as a
     // <button aria-haspopup="listbox"> that opens a floating list, backed by
     // a hidden input holding the real value — not a native <select> at all.
-    // We can't safely fill these yet (would need to simulate opening the
-    // menu and clicking the right option), but detecting them means they
-    // show up as a flagged field instead of being invisible to the scanner.
+    // autofill-engine.js drives these by clicking the button, waiting for
+    // the rendered options, and clicking the matching one; if that doesn't
+    // work out cleanly it falls back to flagging the field for manual review
+    // rather than leaving it invisible to the scanner.
     const controls = root.querySelectorAll(
       "input, textarea, select, [role='combobox'], [role='radio'], [role='checkbox'], [aria-haspopup='listbox']"
     );

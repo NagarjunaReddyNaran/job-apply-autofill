@@ -1,0 +1,168 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8" />
+<title>Custom Dropdown Widget (Test Page)</title>
+<style>
+  body { font-family: sans-serif; max-width: 520px; margin: 40px auto; }
+  label { display: block; margin-top: 16px; font-size: 13px; color: #333; }
+  input[type="text"] { width: 100%; padding: 6px; margin-top: 4px; box-sizing: border-box; }
+
+  /* Mimics Workday's "Country / Territory" widget: a button that looks like
+     a select, backed by a hidden input holding the real (opaque) value. */
+  .combo-wrap { position: relative; margin-top: 4px; }
+  button.combo-button {
+    width: 100%;
+    text-align: left;
+    padding: 8px 10px;
+    box-sizing: border-box;
+    background: #fff;
+    border: 1px solid #94a3b8;
+    border-radius: 4px;
+    font: inherit;
+    cursor: pointer;
+  }
+  button.combo-button:focus { outline: 2px solid #2563eb; }
+
+  /* The "listbox" is portaled to the end of <body> on open, same as many
+     real ATS widgets do, rather than being a DOM descendant of the button. */
+  #combo-listbox {
+    position: absolute;
+    z-index: 1000;
+    background: #fff;
+    border: 1px solid #94a3b8;
+    border-radius: 4px;
+    margin-top: 2px;
+    max-height: 220px;
+    overflow-y: auto;
+    box-shadow: 0 4px 10px rgba(0,0,0,0.12);
+    min-width: 200px;
+  }
+  #combo-listbox[hidden] { display: none; }
+  #combo-listbox [role="option"] {
+    padding: 8px 10px;
+    cursor: pointer;
+  }
+  #combo-listbox [role="option"]:hover,
+  #combo-listbox [role="option"].active {
+    background: #eff6ff;
+  }
+
+  .hint { font-size: 12px; color: #64748b; margin-top: 4px; }
+</style>
+</head>
+<body>
+  <h1>Apply to Acme Corp — Software Engineer</h1>
+  <form>
+    <label for="first_name">First Name
+      <input id="first_name" name="first_name" type="text" />
+    </label>
+    <label for="last_name">Last Name
+      <input id="last_name" name="last_name" type="text" />
+    </label>
+
+    <label id="country-label">Country / Territory
+      <div class="combo-wrap">
+        <button
+          type="button"
+          id="country-button"
+          class="combo-button"
+          aria-haspopup="listbox"
+          aria-expanded="false"
+          aria-controls="combo-listbox"
+          aria-labelledby="country-label"
+        >Select…</button>
+        <!-- The real, submitted value -- an opaque id, exactly like Workday's
+             hidden input, so there's no way to fill this by setting .value. -->
+        <input type="hidden" id="country-hidden" name="country" value="" />
+      </div>
+      <div class="hint">Rendered as a button + portaled listbox, same pattern as Workday's Country/Territory field.</div>
+    </label>
+
+    <label for="phone_num">Phone Number
+      <input id="phone_num" name="phone_num" type="tel" />
+    </label>
+  </form>
+
+  <!-- Portaled listbox, appended to <body> (not inside the form) on open,
+       same as real ATS widgets often do. -->
+  <ul id="combo-listbox" role="listbox" hidden></ul>
+
+  <script>
+    const COUNTRIES = [
+      "United States of America",
+      "Canada",
+      "United Kingdom",
+      "India",
+      "Germany",
+      "Australia",
+      "Mexico",
+      "Brazil",
+      "Japan",
+      "France"
+    ];
+
+    const button = document.getElementById("country-button");
+    const hidden = document.getElementById("country-hidden");
+    const listbox = document.getElementById("combo-listbox");
+
+    function renderOptions() {
+      listbox.innerHTML = "";
+      COUNTRIES.forEach((name, i) => {
+        const li = document.createElement("li");
+        li.setAttribute("role", "option");
+        li.dataset.value = "uuid-" + i;
+        li.textContent = name;
+        li.addEventListener("click", () => selectOption(name, li.dataset.value));
+        listbox.appendChild(li);
+      });
+    }
+
+    function positionListbox() {
+      const rect = button.getBoundingClientRect();
+      listbox.style.left = (rect.left + window.scrollX) + "px";
+      listbox.style.top = (rect.bottom + window.scrollY) + "px";
+      listbox.style.width = rect.width + "px";
+    }
+
+    function openListbox() {
+      renderOptions();
+      positionListbox();
+      // Small artificial delay before the options actually appear, like a
+      // real widget that fetches/animates them in rather than rendering
+      // synchronously on click -- this is the case the extension's
+      // "wait for options to render" logic needs to handle.
+      listbox.hidden = true;
+      setTimeout(() => {
+        listbox.hidden = false;
+        button.setAttribute("aria-expanded", "true");
+      }, 250);
+    }
+
+    function closeListbox() {
+      listbox.hidden = true;
+      button.setAttribute("aria-expanded", "false");
+    }
+
+    function selectOption(name, value) {
+      button.textContent = name;
+      hidden.value = value;
+      hidden.dispatchEvent(new Event("change", { bubbles: true }));
+      closeListbox();
+    }
+
+    button.addEventListener("click", () => {
+      if (listbox.hidden) openListbox();
+      else closeListbox();
+    });
+
+    button.addEventListener("keydown", (e) => {
+      if (e.key === "Escape") closeListbox();
+    });
+
+    document.addEventListener("click", (e) => {
+      if (e.target !== button && !listbox.contains(e.target)) closeListbox();
+    });
+  </script>
+</body>
+</html>

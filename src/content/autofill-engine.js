@@ -31,6 +31,149 @@
     ) || null;
   }
 
+  // --- Custom combobox ("button[aria-haspopup=listbox]") filling -----------
+  //
+  // These widgets (Workday's Country/Territory field and similar) aren't a
+  // native <select> -- they're a <button> that, when clicked, renders a
+  // floating listbox of role="option" elements elsewhere in the DOM, plus a
+  // hidden input holding the real value. Driving one means: click the
+  // button to open it, wait for the options to actually render (they're
+  // inserted async, sometimes with a fade-in), find the option whose text
+  // matches the profile value, and click that option. If anything along the
+  // way doesn't look right -- the menu doesn't open, no option matches --
+  // we back off, close the menu, and fall back to flagging for manual
+  // review rather than leaving the widget in a half-open or wrong state.
+
+  function isElementVisible(el) {
+    const style = window.getComputedStyle(el);
+    if (style.display === "none" || style.visibility === "hidden" || style.opacity === "0") return false;
+    const rect = el.getBoundingClientRect();
+    return rect.width > 0 && rect.height > 0;
+  }
+
+  function findListboxOptions(button) {
+    // Prefer the listbox the button explicitly references, since some pages
+    // render more than one floating listbox-like widget at a time.
+    const refId = button.getAttribute("aria-controls") || button.getAttribute("aria-owns");
+    if (refId) {
+      const owned = document.getElementById(refId);
+      if (owned) {
+        const scoped = Array.from(owned.querySelectorAll("[role='option']"));
+        if (scoped.length) return scoped.filter(isElementVisible);
+      }
+    }
+    // Fall back to any visible role="option" elements on the page -- most
+    // of these widgets portal their listbox to the end of <body>, so it
+    // usually isn't a DOM descendant of the button.
+    return Array.from(document.querySelectorAll("[role='option']")).filter(isElementVisible);
+  }
+
+  function dispatchClick(el) {
+    const rect = el.getBoundingClientRect();
+    const opts = {
+      bubbles: true,
+      cancelable: true,
+      view: window,
+      clientX: rect.left + rect.width / 2,
+      clientY: rect.top + rect.height / 2
+    };
+    // Some widgets listen on pointer/mouse down+up rather than just "click".
+    ["pointerdown", "mousedown", "pointerup", "mouseup", "click"].forEach((type) => {
+      try {
+        el.dispatchEvent(new MouseEvent(type, opts));
+      } catch {
+        // MouseEvent unsupported for this type in this environment -- skip it.
+      }
+    });
+  }
+
+  function closeListbox(button) {
+    try {
+      button.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape", bubbles: true, cancelable: true }));
+    } catch {
+      // ignore
+    }
+  }
+
+  function waitForOptions(button, timeoutMs = 1500) {
+    return new Promise((resolve) => {
+      const start = performance.now();
+      function check() {
+        const options = findListboxOptions(button);
+        if (options.length) {
+          resolve(options);
+          return;
+        }
+        if (performance.now() - start >= timeoutMs) {
+          resolve([]);
+          return;
+        }
+        requestAnimationFrame(check);
+      }
+      check();
+    });
+  }
+
+  async function fillCustomCombobox(field, rawValue) {
+    const button = field.element;
+    const target = String(rawValue).trim().toLowerCase();
+    if (!target) return { ok: false, reason: "no profile value" };
+
+    // If the button's own label already shows this value (e.g. the page
+    // defaulted it, or a previous run already set it), leave it alone.
+    const currentText = (button.textContent || "").trim().toLowerCase();
+    if (currentText && (currentText === target || currentText.includes(target))) {
+      return { ok: true, alreadyCorrect: true };
+    }
+
+    dispatchClick(button);
+    const options = await waitForOptions(button);
+
+    if (!options.length) {
+      closeListbox(button);
+      return { ok: false, reason: "dropdown didn't open — please select manually" };
+    }
+
+    const optionText = (el) => el.textContent.trim().toLowerCase();
+    let match = options.find((o) => optionText(o) === target);
+    if (!match) match = options.find((o) => optionText(o).includes(target));
+
+    if (!match) {
+      closeListbox(button);
+      return { ok: false, reason: "no matching option found in dropdown — please select manually" };
+    }
+
+    dispatchClick(match);
+    // Give the widget a beat to update its button label / hidden input
+    // before we move on to the next field.
+    await new Promise((resolve) => setTimeout(resolve, 80));
+    return { ok: true };
+  }
+
+  async function writeComboboxValue(field, rawValue, label, confidence, summary) {
+    const hasValue = rawValue !== "" && rawValue !== null && rawValue !== undefined;
+    if (!hasValue) {
+      window.JobApplyDom.highlight(field.element, "review");
+      summary.skipped.push({ label, reason: "no profile value" });
+      return;
+    }
+
+    try {
+      const result = await fillCustomCombobox(field, rawValue);
+      if (result.ok) {
+        window.JobApplyDom.highlight(field.element, "filled");
+        summary.filled.push({ label, confidence });
+      } else {
+        window.JobApplyDom.highlight(field.element, "review");
+        summary.skipped.push({ label, reason: result.reason || "custom dropdown widget — please select manually" });
+      }
+    } catch (err) {
+      console.warn("[JobApplyAutofill] custom combobox fill failed:", err);
+      window.JobApplyDom.highlight(field.element, "review");
+      summary.skipped.push({ label, reason: "custom dropdown widget — please select manually" });
+    }
+  }
+
   function writeValue(field, rawValue, label, confidence, summary) {
     const hasValue = rawValue !== "" && rawValue !== null && rawValue !== undefined;
 
@@ -108,7 +251,7 @@
     }
   }
 
-  function runAutofill(profile) {
+  async function runAutofill(profile) {
     const fields = window.JobApplyDetector.detectFields(document);
     const summary = { filled: [], skipped: [], unknown: [], fileFields: [], errors: [], sectionNotices: [] };
 
@@ -127,21 +270,6 @@
           continue;
         }
 
-        if (field.kind === "custom-combobox") {
-          // We can detect these (a <button aria-haspopup="listbox"> style
-          // dropdown, common on Workday and similar ATS UIs) but can't
-          // safely fill them yet -- that would mean simulating opening the
-          // menu and clicking the right option, which is fragile without
-          // knowing the specific widget's DOM behavior. Flag it as a known
-          // field that needs a manual pick, rather than leaving it invisible
-          // (old behavior) or guessing at how to drive it (unsafe).
-          window.JobApplyDom.highlight(field.element, "review");
-          const { semanticField } = window.JobApplyClassifier.classifyField(field.signals);
-          const label = semanticField || field.signals.ariaLabel || field.signals.labelText || field.signals.name || "(custom dropdown)";
-          summary.skipped.push({ label, reason: "custom dropdown widget — please select manually" });
-          continue;
-        }
-
         const assignment = sections.assignments.get(field);
 
         if (assignment) {
@@ -153,15 +281,21 @@
             summary.skipped.push({ label, reason: `no saved entry #${assignment.entryIndex + 1} in profile` });
             continue;
           }
-          writeValue(field, entry[assignment.localKey], label, 0.9, summary);
+          if (field.kind === "custom-combobox") {
+            await writeComboboxValue(field, entry[assignment.localKey], label, 0.9, summary);
+          } else {
+            writeValue(field, entry[assignment.localKey], label, 0.9, summary);
+          }
           continue;
         }
 
         const { semanticField, confidence } = window.JobApplyClassifier.classifyField(field.signals);
 
         if (!semanticField || confidence < CONFIDENCE_THRESHOLD) {
-          window.JobApplyDom.highlight(field.kind === "radio-group" ? field.elements[0] : field.element, "unknown");
-          summary.unknown.push({ label: field.signals.labelText || field.signals.name || field.signals.id || "(unlabeled)" });
+          const fallbackEl = field.kind === "radio-group" ? field.elements[0] : field.element;
+          window.JobApplyDom.highlight(fallbackEl, "unknown");
+          const unknownLabel = field.signals.labelText || field.signals.ariaLabel || field.signals.name || field.signals.id || "(unlabeled)";
+          summary.unknown.push({ label: unknownLabel });
           continue;
         }
 
@@ -172,7 +306,11 @@
           continue;
         }
 
-        writeValue(field, profile[semanticField], semanticField, confidence, summary);
+        if (field.kind === "custom-combobox") {
+          await writeComboboxValue(field, profile[semanticField], semanticField, confidence, summary);
+        } else {
+          writeValue(field, profile[semanticField], semanticField, confidence, summary);
+        }
       } catch (err) {
         console.warn("[JobApplyAutofill] skipped a field during fill:", err);
         summary.errors.push(String(err));

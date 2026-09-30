@@ -3,6 +3,36 @@
 A Chrome Manifest V3 extension that detects and fills common job application
 fields. It never clicks Submit/Apply/Next for you.
 
+## v0.5.0 — Custom dropdown ("combobox") filling
+
+Workday and similar ATS UIs often render a "select"-like field as a
+`<button aria-haspopup="listbox">` instead of a native `<select>` — clicking
+it opens a floating (often portaled-to-`<body>`) list of `role="option"`
+elements, and the real value lives in a hidden input the widget manages
+itself. These were previously detected but always flagged "needs manual
+review." Now the extension actually drives them:
+
+- Clicks the button to open the menu.
+- Waits (up to 1.5s, polling via `requestAnimationFrame`) for visible
+  `role="option"` elements to render — looking first inside whatever element
+  the button's `aria-controls`/`aria-owns` points to, then falling back to
+  any visible options on the page, since these widgets commonly portal the
+  listbox elsewhere in the DOM rather than nesting it under the button.
+- Matches an option by exact text, then by substring, against the profile
+  value (e.g. `profile.country`).
+- Clicks the matching option via simulated pointer/mouse events, which
+  triggers the widget's own state update (button label + hidden input) —
+  we never try to set the hidden input's value directly, since that value
+  is an opaque id the widget itself assigns.
+- Falls back safely to the existing "needs manual review" flag — and closes
+  the menu (Escape) rather than leaving it open — if the menu never opens or
+  no option matches the profile value.
+- If the button already displays the correct value, it's left untouched
+  and marked filled, same as the "already correct" logic for text fields.
+- New test page: `test-pages/custom-combobox.html`, which mimics Workday's
+  Country/Territory widget (button + portaled listbox + hidden input, with
+  an artificial render delay) for testing this without a live site.
+
 ## v0.4.0 — Per-site permissions instead of `<all_urls>`
 
 The extension no longer requests host access to every website at install
@@ -72,6 +102,7 @@ instead of one flat field.
 - Field highlighting (green = filled, yellow = needs review, gray dashed = unknown)
 - Iframe-aware detection and filling
 - Repeated-section detection for Workday-style multi-entry blocks
+- Custom dropdown ("button + listbox") widget filling, e.g. Workday's Country/Territory field
 - Basic multi-page session tracking (badge + step counter across page navigations)
 - Test pages: basic form, React-controlled inputs, 3-page multi-step flow, iframe-embedded ATS widget, Workday-style repeated sections
 

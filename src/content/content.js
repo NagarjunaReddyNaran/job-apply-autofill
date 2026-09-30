@@ -63,18 +63,17 @@
         return true;
       }
       if (message.type === "FILL") {
+        // runAutofill is async (custom-combobox widgets need to click to
+        // open, wait for the rendered options, then click the right one —
+        // each of those is a real DOM round-trip, not instantaneous).
         window.getProfileForContentScript()
-          .then((profile) => {
-            try {
-              const result = window.JobApplyAutofill.runAutofill(profile);
-              notifyBackground();
-              sendResponse(result);
-            } catch (fillErr) {
-              console.warn("[JobApplyAutofill] fill failed:", fillErr);
-              sendResponse({ filled: [], skipped: [], unknown: [], fileFields: [], error: String(fillErr) });
-            }
+          .then((profile) => window.JobApplyAutofill.runAutofill(profile))
+          .then((result) => {
+            notifyBackground();
+            sendResponse(result);
           })
           .catch((err) => {
+            console.warn("[JobApplyAutofill] fill failed:", err);
             sendResponse({ filled: [], skipped: [], unknown: [], fileFields: [], error: String(err) });
           });
         return true; // async response
