@@ -1,0 +1,164 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8" />
+<title>Workday-style Application (Test Page)</title>
+<style>
+  body { font-family: sans-serif; max-width: 700px; margin: 40px auto; color: #1e293b; }
+  h1 { font-size: 20px; }
+  h2 { font-size: 16px; margin-top: 40px; border-bottom: 1px solid #e2e8f0; padding-bottom: 6px; }
+  h3 { font-size: 14px; margin-top: 24px; }
+  .muted { color: #64748b; font-size: 13px; }
+  label { display: block; margin-top: 12px; font-size: 13px; font-weight: 600; }
+  label .req { color: #dc2626; }
+  input[type=text], select, textarea { width: 100%; padding: 7px; margin-top: 4px; box-sizing: border-box; font-family: inherit; }
+  .checkbox-row { display: flex; align-items: center; gap: 8px; font-weight: normal; margin-top: 10px; }
+  .add-another { margin-top: 16px; background: #4c1d95; color: white; border: none; padding: 10px 16px; border-radius: 4px; cursor: pointer; font-weight: 600; }
+  .entry { border-left: 3px solid #e2e8f0; padding-left: 14px; margin-bottom: 10px; }
+</style>
+</head>
+<body>
+  <h1>Apply to Ontario Health — Senior Software Developer</h1>
+
+  <h2>Professional Experience</h2>
+  <p class="muted">Please provide details of your prior work history / industrial experience here.</p>
+  <div id="workExperienceContainer">
+    <div class="entry">
+      <h3>Professional Experience 1</h3>
+      <label>Job Title <span class="req">*</span><input type="text" name="we1_jobTitle" /></label>
+      <label>Company <span class="req">*</span><input type="text" name="we1_company" /></label>
+      <label>Location <span class="req">*</span><input type="text" name="we1_location" /></label>
+      <div class="checkbox-row">
+        <input type="checkbox" id="we1_current" name="we1_current" />
+        <label for="we1_current" style="margin:0;">I currently work here</label>
+      </div>
+      <label>From <span class="req">*</span><input type="text" name="we1_from" placeholder="MM/YYYY" /></label>
+      <label>To<input type="text" name="we1_to" placeholder="MM/YYYY" /></label>
+      <label>Role Description <span class="req">*</span><textarea name="we1_desc" rows="3"></textarea></label>
+    </div>
+  </div>
+  <button type="button" class="add-another" onclick="addWorkExperience()">Add Another</button>
+
+  <h2>Education</h2>
+  <p class="muted">Please provide details of your formal education.</p>
+  <div id="educationContainer">
+    <div class="entry">
+      <h3>Education 1</h3>
+      <label>School or University <span class="req">*</span><input type="text" name="ed1_school" /></label>
+      <label>Degree <span class="req">*</span>
+        <select name="ed1_degree">
+          <option value="">Select One</option>
+          <option value="associate">Associate's Degree</option>
+          <option value="bachelor">Bachelor's Degree</option>
+          <option value="master">Master's Degree</option>
+          <option value="phd">Doctorate</option>
+        </select>
+      </label>
+      <label>Field of Study <span class="req">*</span><input type="text" name="ed1_field" /></label>
+    </div>
+  </div>
+  <button type="button" class="add-another" onclick="addEducation()">Add Another</button>
+
+  <h2>Languages</h2>
+  <p class="muted">List each of the languages you speak, read or write and their proficiency levels.</p>
+  <div id="languagesContainer">
+    <div class="entry">
+      <h3>Languages 1</h3>
+      <label>Language <span class="req">*</span>
+        <select name="lang1_language">
+          <option value="">Select One</option>
+          <option value="english">English</option>
+          <option value="french">French</option>
+          <option value="spanish">Spanish</option>
+        </select>
+      </label>
+      <div class="checkbox-row">
+        <input type="checkbox" id="lang1_fluent" name="lang1_fluent" />
+        <label for="lang1_fluent" style="margin:0;">I am fluent in this language.</label>
+      </div>
+      <label>Comprehension <span class="req">*</span>
+        <select name="lang1_comprehension"><option value="">Select One</option><option>Basic</option><option>Intermediate</option><option>Fluent</option><option>Native/Bilingual</option></select>
+      </label>
+      <label>Overall <span class="req">*</span>
+        <select name="lang1_overall"><option value="">Select One</option><option>Basic</option><option>Intermediate</option><option>Fluent</option><option>Native/Bilingual</option></select>
+      </label>
+      <label>Reading <span class="req">*</span>
+        <select name="lang1_reading"><option value="">Select One</option><option>Basic</option><option>Intermediate</option><option>Fluent</option><option>Native/Bilingual</option></select>
+      </label>
+      <label>Speaking <span class="req">*</span>
+        <select name="lang1_speaking"><option value="">Select One</option><option>Basic</option><option>Intermediate</option><option>Fluent</option><option>Native/Bilingual</option></select>
+      </label>
+      <label>Writing <span class="req">*</span>
+        <select name="lang1_writing"><option value="">Select One</option><option>Basic</option><option>Intermediate</option><option>Fluent</option><option>Native/Bilingual</option></select>
+      </label>
+    </div>
+  </div>
+  <button type="button" class="add-another" onclick="addLanguage()">Add Another</button>
+
+  <p style="margin-top: 40px;"><button type="button" onclick="alert('This test page never actually submits.')">Submit Application</button></p>
+
+  <script>
+    let weCount = 1, edCount = 1, langCount = 1;
+
+    function addWorkExperience() {
+      weCount++;
+      const div = document.createElement("div");
+      div.className = "entry";
+      div.innerHTML = `
+        <h3>Professional Experience ${weCount}</h3>
+        <label>Job Title <span class="req">*</span><input type="text" name="we${weCount}_jobTitle" /></label>
+        <label>Company <span class="req">*</span><input type="text" name="we${weCount}_company" /></label>
+        <label>Location <span class="req">*</span><input type="text" name="we${weCount}_location" /></label>
+        <div class="checkbox-row">
+          <input type="checkbox" id="we${weCount}_current" name="we${weCount}_current" />
+          <label for="we${weCount}_current" style="margin:0;">I currently work here</label>
+        </div>
+        <label>From <span class="req">*</span><input type="text" name="we${weCount}_from" placeholder="MM/YYYY" /></label>
+        <label>To<input type="text" name="we${weCount}_to" placeholder="MM/YYYY" /></label>
+        <label>Role Description <span class="req">*</span><textarea name="we${weCount}_desc" rows="3"></textarea></label>`;
+      document.getElementById("workExperienceContainer").appendChild(div);
+    }
+
+    function addEducation() {
+      edCount++;
+      const div = document.createElement("div");
+      div.className = "entry";
+      div.innerHTML = `
+        <h3>Education ${edCount}</h3>
+        <label>School or University <span class="req">*</span><input type="text" name="ed${edCount}_school" /></label>
+        <label>Degree <span class="req">*</span>
+          <select name="ed${edCount}_degree">
+            <option value="">Select One</option>
+            <option value="associate">Associate's Degree</option>
+            <option value="bachelor">Bachelor's Degree</option>
+            <option value="master">Master's Degree</option>
+            <option value="phd">Doctorate</option>
+          </select>
+        </label>
+        <label>Field of Study <span class="req">*</span><input type="text" name="ed${edCount}_field" /></label>`;
+      document.getElementById("educationContainer").appendChild(div);
+    }
+
+    function addLanguage() {
+      langCount++;
+      const div = document.createElement("div");
+      div.className = "entry";
+      div.innerHTML = `
+        <h3>Languages ${langCount}</h3>
+        <label>Language <span class="req">*</span>
+          <select name="lang${langCount}_language"><option value="">Select One</option><option value="english">English</option><option value="french">French</option><option value="spanish">Spanish</option></select>
+        </label>
+        <div class="checkbox-row">
+          <input type="checkbox" id="lang${langCount}_fluent" name="lang${langCount}_fluent" />
+          <label for="lang${langCount}_fluent" style="margin:0;">I am fluent in this language.</label>
+        </div>
+        <label>Comprehension <span class="req">*</span><select name="lang${langCount}_comprehension"><option value="">Select One</option><option>Basic</option><option>Intermediate</option><option>Fluent</option><option>Native/Bilingual</option></select></label>
+        <label>Overall <span class="req">*</span><select name="lang${langCount}_overall"><option value="">Select One</option><option>Basic</option><option>Intermediate</option><option>Fluent</option><option>Native/Bilingual</option></select></label>
+        <label>Reading <span class="req">*</span><select name="lang${langCount}_reading"><option value="">Select One</option><option>Basic</option><option>Intermediate</option><option>Fluent</option><option>Native/Bilingual</option></select></label>
+        <label>Speaking <span class="req">*</span><select name="lang${langCount}_speaking"><option value="">Select One</option><option>Basic</option><option>Intermediate</option><option>Fluent</option><option>Native/Bilingual</option></select></label>
+        <label>Writing <span class="req">*</span><select name="lang${langCount}_writing"><option value="">Select One</option><option>Basic</option><option>Intermediate</option><option>Fluent</option><option>Native/Bilingual</option></select></label>`;
+      document.getElementById("languagesContainer").appendChild(div);
+    }
+  </script>
+</body>
+</html>

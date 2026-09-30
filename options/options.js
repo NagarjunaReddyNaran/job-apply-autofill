@@ -1,5 +1,7 @@
 // options.js
 
+let editingProfile = null; // in-memory working copy; written to storage on Save
+
 function renderForm(profile) {
   const form = document.getElementById("profileForm");
   form.innerHTML = "";
@@ -45,25 +47,132 @@ function readFormIntoProfile(existing) {
   return profile;
 }
 
+function renderEntryList(collectionKey, containerId, fieldDefs, entryLabel) {
+  const container = document.getElementById(containerId);
+  container.innerHTML = "";
+  const entries = editingProfile[collectionKey] || [];
+
+  entries.forEach((entry, index) => {
+    const card = document.createElement("div");
+    card.className = "entry-card";
+
+    const heading = document.createElement("div");
+    heading.style.fontWeight = "600";
+    heading.style.fontSize = "13px";
+    heading.style.marginBottom = "6px";
+    heading.textContent = `${entryLabel} ${index + 1}`;
+    card.appendChild(heading);
+
+    const removeBtn = document.createElement("button");
+    removeBtn.type = "button";
+    removeBtn.className = "remove-entry";
+    removeBtn.textContent = "Remove";
+    removeBtn.addEventListener("click", () => {
+      editingProfile[collectionKey].splice(index, 1);
+      renderEntryList(collectionKey, containerId, fieldDefs, entryLabel);
+    });
+    card.appendChild(removeBtn);
+
+    const grid = document.createElement("div");
+    grid.className = "entry-grid";
+
+    for (const fdef of fieldDefs) {
+      const label = document.createElement("label");
+      label.textContent = fdef.label;
+
+      let input;
+      if (fdef.type === "boolean") {
+        input = document.createElement("select");
+        input.innerHTML = `<option value="">— not set —</option><option value="true">Yes</option><option value="false">No</option>`;
+        input.value = entry[fdef.key] === true ? "true" : entry[fdef.key] === false ? "false" : "";
+        input.addEventListener("change", () => {
+          entry[fdef.key] = input.value === "" ? null : input.value === "true";
+        });
+      } else if (fdef.type === "textarea") {
+        input = document.createElement("textarea");
+        input.rows = 3;
+        input.value = entry[fdef.key] || "";
+        input.addEventListener("input", () => { entry[fdef.key] = input.value; });
+      } else {
+        input = document.createElement("input");
+        input.type = "text";
+        input.value = entry[fdef.key] || "";
+        input.placeholder = fdef.placeholder || "";
+        input.addEventListener("input", () => { entry[fdef.key] = input.value; });
+      }
+      label.appendChild(input);
+      grid.appendChild(label);
+    }
+
+    card.appendChild(grid);
+    container.appendChild(card);
+  });
+}
+
+const WORK_EXPERIENCE_FIELD_DEFS = [
+  { key: "jobTitle", label: "Job Title" },
+  { key: "company", label: "Company" },
+  { key: "location", label: "Location" },
+  { key: "current", label: "Currently work here?", type: "boolean" },
+  { key: "startDate", label: "From (MM/YYYY)", placeholder: "01/2022" },
+  { key: "endDate", label: "To (MM/YYYY, blank if current)", placeholder: "01/2024" },
+  { key: "description", label: "Role Description", type: "textarea" }
+];
+
+const EDUCATION_FIELD_DEFS = [
+  { key: "school", label: "School or University" },
+  { key: "degree", label: "Degree" },
+  { key: "fieldOfStudy", label: "Field of Study" }
+];
+
+const LANGUAGE_FIELD_DEFS = [
+  { key: "language", label: "Language" },
+  { key: "fluent", label: "Fluent?", type: "boolean" },
+  { key: "comprehension", label: "Comprehension level" },
+  { key: "overall", label: "Overall level" },
+  { key: "reading", label: "Reading level" },
+  { key: "speaking", label: "Speaking level" },
+  { key: "writing", label: "Writing level" }
+];
+
+function renderAllEntryLists() {
+  renderEntryList("workExperience", "workExperienceList", WORK_EXPERIENCE_FIELD_DEFS, "Experience");
+  renderEntryList("education", "educationList", EDUCATION_FIELD_DEFS, "Education");
+  renderEntryList("languages", "languagesList", LANGUAGE_FIELD_DEFS, "Language");
+}
+
 async function init() {
-  const profile = await window.getProfile();
-  renderForm(profile);
-  document.getElementById("snippetWhy").value = profile.snippets?.whyThisCompany || "";
-  document.getElementById("enableEeo").checked = !!profile.enableEeoAutofill;
-  document.getElementById("highlightFields").checked = profile.highlightFields !== false;
+  editingProfile = await window.getProfile();
+  renderForm(editingProfile);
+  renderAllEntryLists();
+
+  document.getElementById("snippetWhy").value = editingProfile.snippets?.whyThisCompany || "";
+  document.getElementById("enableEeo").checked = !!editingProfile.enableEeoAutofill;
+  document.getElementById("highlightFields").checked = editingProfile.highlightFields !== false;
+
+  document.getElementById("addWorkExperience").addEventListener("click", () => {
+    editingProfile.workExperience.push(window.emptyWorkExperience());
+    renderEntryList("workExperience", "workExperienceList", WORK_EXPERIENCE_FIELD_DEFS, "Experience");
+  });
+  document.getElementById("addEducation").addEventListener("click", () => {
+    editingProfile.education.push(window.emptyEducationEntry());
+    renderEntryList("education", "educationList", EDUCATION_FIELD_DEFS, "Education");
+  });
+  document.getElementById("addLanguage").addEventListener("click", () => {
+    editingProfile.languages.push(window.emptyLanguageEntry());
+    renderEntryList("languages", "languagesList", LANGUAGE_FIELD_DEFS, "Language");
+  });
 
   document.getElementById("saveBtn").addEventListener("click", async () => {
-    const current = await window.getProfile();
-    const updated = readFormIntoProfile(current);
-    await window.saveProfile(updated);
+    editingProfile = readFormIntoProfile(editingProfile);
+    await window.saveProfile(editingProfile);
     const msg = document.getElementById("savedMsg");
     msg.classList.remove("hidden");
     setTimeout(() => msg.classList.add("hidden"), 1500);
   });
 
   document.getElementById("exportBtn").addEventListener("click", async () => {
-    const current = await window.getProfile();
-    window.exportProfileToFile(current);
+    window.exportProfileToFile(editingProfile);
   });
 
   document.getElementById("importBtn").addEventListener("click", () => {
@@ -73,10 +182,11 @@ async function init() {
   document.getElementById("importFile").addEventListener("change", async (e) => {
     const file = e.target.files[0];
     if (!file) return;
-    const merged = await window.importProfileFromFile(file);
-    renderForm(merged);
-    document.getElementById("snippetWhy").value = merged.snippets?.whyThisCompany || "";
-    document.getElementById("enableEeo").checked = !!merged.enableEeoAutofill;
+    editingProfile = await window.importProfileFromFile(file);
+    renderForm(editingProfile);
+    renderAllEntryLists();
+    document.getElementById("snippetWhy").value = editingProfile.snippets?.whyThisCompany || "";
+    document.getElementById("enableEeo").checked = !!editingProfile.enableEeoAutofill;
   });
 }
 

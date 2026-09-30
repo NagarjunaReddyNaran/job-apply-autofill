@@ -17,8 +17,7 @@
     re-renders the field's value from that state on every keystroke. If the
     extension just sets <code>el.value = "..."</code> directly (without using
     the native property setter + dispatching a real "input" event), the value
-    will visibly "snap back" to empty. This is the scenario Feature 4 /
-    "trigger appropriate DOM events" is meant to solve.
+    will visibly "snap back" to empty.
   </p>
 
   <label for="firstName">First Name
@@ -29,14 +28,11 @@
   </label>
 
   <script>
-    // Simulate a minimal "controlled component": state is the source of
-    // truth, and the DOM is re-synced to state on every input event.
     const state = { firstName: "", email: "" };
     function bind(id, key) {
       const el = document.getElementById(id);
       el.addEventListener("input", () => {
         state[key] = el.value;
-        // Re-render from state, exactly like React would on the next tick.
         if (el.value !== state[key]) el.value = state[key];
       });
     }
