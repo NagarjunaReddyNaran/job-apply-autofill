@@ -31,7 +31,23 @@
     <button id="fillBtn" class="primary">Fill Application</button>
     <button id="scanBtn">Rescan Page</button>
     <button id="undoBtn">Undo Highlighting</button>
+    <button id="cleanupBtn">Remove Extra Entries</button>
   </div>
+
+  <section id="cleanupConfirm" class="hidden">
+    <p class="muted">
+      This clicks "Delete"/"Remove" on any Work Experience, Education, or
+      Language entries beyond what's saved in your profile — for example,
+      extra entries Workday's "Autofill with Resume" step added from your
+      resume that aren't in your saved profile. If the page shows its own
+      confirmation prompt for a delete, you'll still need to confirm that
+      yourself.
+    </p>
+    <div class="actions">
+      <button id="cleanupConfirmYes" class="primary">Yes, remove them</button>
+      <button id="cleanupConfirmNo">Cancel</button>
+    </div>
+  </section>
 
   <div id="resultBox" class="hidden">
     <h2>Last fill result</h2>

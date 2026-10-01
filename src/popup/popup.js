@@ -267,6 +267,52 @@ async function fillActiveTab() {
   }
 }
 
+// Extension popups have flaky, inconsistent support for window.confirm()/
+// alert() across Chrome versions (a modal dialog from a small transient
+// popup window can fail to show, or the popup can lose focus and close
+// before the person responds) -- unacceptable for something that gates a
+// destructive action. So this asks inline, inside the popup's own markup,
+// instead of relying on a native dialog.
+function showCleanupConfirm(show) {
+  document.getElementById("cleanupConfirm").classList.toggle("hidden", !show);
+  document.getElementById("actions").classList.toggle("hidden", show);
+}
+
+async function runCleanupExtraEntries() {
+  if (!currentTabId) return;
+  showCleanupConfirm(false);
+
+  const btn = document.getElementById("cleanupBtn");
+  btn.disabled = true;
+  btn.textContent = "Removing…";
+  try {
+    const frameIds = currentFrames.length ? currentFrames.map((f) => f.frameId) : [0];
+    const results = await sendToFrames(currentTabId, frameIds, { type: "CLEANUP_EXTRA" });
+    const removed = results.reduce((sum, r) => sum + (r.removed || []).length, 0);
+    const notRemovable = results.reduce((sum, r) => sum + (r.notRemovable || []).length, 0);
+
+    document.getElementById("resultBox").classList.remove("hidden");
+    const lines = [];
+    if (removed) lines.push(`<div>✓ Removed ${removed} extra entr${removed === 1 ? "y" : "ies"}.</div>`);
+    if (notRemovable) {
+      lines.push(
+        `<div class="notice">ℹ️ Couldn't find a Delete control for ${notRemovable} extra entr${notRemovable === 1 ? "y" : "ies"} — ${notRemovable === 1 ? "it's" : "they're"} highlighted for you to remove manually.</div>`
+      );
+    }
+    if (!removed && !notRemovable) lines.push(`<div>No extra entries found beyond your saved profile.</div>`);
+    document.getElementById("resultSummary").innerHTML = lines.join("");
+
+    await scanActiveTab();
+  } catch (e) {
+    document.getElementById("resultBox").classList.remove("hidden");
+    document.getElementById("resultSummary").innerHTML =
+      `<div class="notice">⚠ Could not clean up extra entries. Try reloading the tab and reopening the popup.</div>`;
+  } finally {
+    btn.disabled = false;
+    btn.textContent = "Remove Extra Entries";
+  }
+}
+
 async function undoActiveTab() {
   if (!currentTabId) return;
   const frameIds = currentFrames.length ? currentFrames.map((f) => f.frameId) : [0];
@@ -277,6 +323,9 @@ async function undoActiveTab() {
 document.getElementById("fillBtn").addEventListener("click", fillActiveTab);
 document.getElementById("scanBtn").addEventListener("click", scanActiveTab);
 document.getElementById("undoBtn").addEventListener("click", undoActiveTab);
+document.getElementById("cleanupBtn").addEventListener("click", () => showCleanupConfirm(true));
+document.getElementById("cleanupConfirmYes").addEventListener("click", runCleanupExtraEntries);
+document.getElementById("cleanupConfirmNo").addEventListener("click", () => showCleanupConfirm(false));
 document.getElementById("optionsBtn").addEventListener("click", () => chrome.runtime.openOptionsPage());
 document.getElementById("enableSiteBtn").addEventListener("click", enableOnThisSite);
 

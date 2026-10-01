@@ -351,6 +351,17 @@
           );
           const btn = sections.addAnotherButtons[sectionKey];
           if (btn) window.JobApplyDom.highlight(btn, "review");
+        } else if (renderedCount > savedCount) {
+          // More blocks are rendered than the profile has saved entries for
+          // -- typically Workday's "Autofill with Resume" step parsed more
+          // jobs/schools/languages out of the resume than the user keeps in
+          // their saved profile. We don't delete these during an ordinary
+          // Fill Application (deleting entries is a separate, deliberate
+          // action -- see cleanupExtraEntries), just flag that they're there.
+          const extra = renderedCount - savedCount;
+          summary.sectionNotices.push(
+            `${extra} extra ${sectionKey} ${extra === 1 ? "entry" : "entries"} beyond your saved profile (likely from "Autofill with Resume") — use "Remove Extra Entries" to delete ${extra === 1 ? "it" : "them"}.`
+          );
         }
       }
     } catch (err) {
@@ -366,5 +377,46 @@
     });
   }
 
-  window.JobApplyAutofill = { runAutofill, undoAutofill, CONFIDENCE_THRESHOLD };
+  // --- Removing extra resume-parsed entries ---------------------------------
+  //
+  // Workday's "Autofill with Resume" step can parse MORE jobs/schools/
+  // languages out of the uploaded resume than the user keeps in their saved
+  // profile (e.g. an old internship they don't want on this application).
+  // This is a separate, deliberate action from runAutofill -- never done as
+  // a side effect of a normal Fill, since deleting part of the user's
+  // in-progress application is more consequential than just writing into a
+  // text box, and should only happen when they explicitly ask for it.
+  async function cleanupExtraEntries(profile) {
+    const savedCounts = {
+      workExperience: (profile.workExperience || []).length,
+      education: (profile.education || []).length,
+      languages: (profile.languages || []).length
+    };
+
+    const extra = window.JobApplySections.findDeletableBlocks(document, savedCounts);
+    const result = { removed: [], notRemovable: [] };
+
+    for (const sectionKey of Object.keys(extra)) {
+      for (const block of extra[sectionKey]) {
+        if (!block.deleteButton) {
+          // Couldn't find a Delete/Remove control for this block -- flag it
+          // for the user rather than guessing at some other way to clear it.
+          window.JobApplyDom.highlight(block.headingElement, "review");
+          result.notRemovable.push({ sectionKey, entryNumber: block.entryNumber });
+          continue;
+        }
+        dispatchClick(block.deleteButton);
+        // Give the page a moment to actually remove the block from the DOM
+        // (or show its own confirmation dialog, which the user -- not us --
+        // needs to confirm; we deliberately don't try to auto-dismiss any
+        // native confirm() prompt the page might raise here).
+        await new Promise((resolve) => setTimeout(resolve, 200));
+        result.removed.push({ sectionKey, entryNumber: block.entryNumber });
+      }
+    }
+
+    return result;
+  }
+
+  window.JobApplyAutofill = { runAutofill, undoAutofill, cleanupExtraEntries, CONFIDENCE_THRESHOLD };
 })();

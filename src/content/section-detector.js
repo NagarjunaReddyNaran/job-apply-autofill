@@ -76,9 +76,28 @@
         }
       }
     });
-    return found
+    const deduped = found
       .filter((f, i) => !found.some((other, j) => i !== j && other.element.contains(f.element) && other.element !== f.element))
       .sort((a, b) => (a.element.compareDocumentPosition(b.element) & Node.DOCUMENT_POSITION_FOLLOWING ? -1 : 1));
+
+    // A bare, un-numbered section heading ("Education") matches the same
+    // heading pattern as a numbered one ("Education 1") with its number
+    // defaulted to 1, since the (\d+)? group is optional -- that's needed so
+    // a section with only ONE entry (no visible number at all) still gets
+    // picked up. But when the page ALSO has an explicit "Education 1"
+    // heading for its first block (common when a section header and a
+    // per-entry header both exist), both resolve to the same (sectionKey,
+    // entryNumber) pair and we'd otherwise double-count that block -- which
+    // showed up as duplicated entries out of findDeletableBlocks(). Keep
+    // only the LAST match for a given (sectionKey, entryNumber): the bare
+    // section heading always comes first in document order (it's the
+    // section's own title, before any of its numbered blocks), so the later
+    // match is always the real, more specific per-block heading.
+    const seen = new Map();
+    deduped.forEach((h) => {
+      seen.set(`${h.sectionKey}:${h.entryNumber}`, h);
+    });
+    return deduped.filter((h) => seen.get(`${h.sectionKey}:${h.entryNumber}`) === h);
   }
 
   function isBetween(el, startEl, endEl) {
@@ -152,5 +171,42 @@
     return { assignments, blocksFound, addAnotherButtons };
   }
 
-  window.JobApplySections = { detectSections, SECTION_DEFS };
+  // Finds rendered blocks that go BEYOND what the profile has saved for that
+  // section (entryNumber > savedCounts[sectionKey]) -- the case where
+  // Workday's "Autofill with Resume" step parsed more jobs/schools/languages
+  // out of the resume than the user has chosen to keep in their saved
+  // profile. For each such block, finds its own "Delete"/"Remove" button (if
+  // any) so the caller can remove it and leave only the blocks that
+  // correspond to a real saved profile entry. Sorted highest entryNumber
+  // first, so deleting one block doesn't shift the DOM position (or
+  // Workday's own re-numbering) of another block this function already
+  // found, before the caller gets to it.
+  function findDeletableBlocks(root, savedCounts) {
+    const headings = findHeadings(root);
+    const allButtons = Array.from(root.querySelectorAll("button, a, [role='button']"));
+    const result = { workExperience: [], education: [], languages: [] };
+
+    headings.forEach((heading, idx) => {
+      const savedCount = savedCounts[heading.sectionKey] || 0;
+      if (heading.entryNumber <= savedCount) return; // a saved profile entry maps here -- keep it
+
+      const nextHeading = headings[idx + 1]?.element || null;
+      let deleteButton = null;
+      for (const btn of allButtons) {
+        if (!/\b(delete|remove)\b/i.test(textOf(btn))) continue;
+        if (isBetween(btn, heading.element, nextHeading)) {
+          deleteButton = btn;
+          break;
+        }
+      }
+      result[heading.sectionKey].push({ entryNumber: heading.entryNumber, headingElement: heading.element, deleteButton });
+    });
+
+    for (const key of Object.keys(result)) {
+      result[key].sort((a, b) => b.entryNumber - a.entryNumber);
+    }
+    return result;
+  }
+
+  window.JobApplySections = { detectSections, findDeletableBlocks, SECTION_DEFS };
 })();

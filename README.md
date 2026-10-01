@@ -3,6 +3,38 @@
 A Chrome Manifest V3 extension that detects and fills common job application
 fields. It never clicks Submit/Apply/Next for you.
 
+## v0.7.0 — Remove extra resume-parsed entries
+
+Workday's "Autofill with Resume" step can parse MORE jobs/schools/languages
+out of an uploaded resume than the user keeps in their saved profile (e.g.
+an old internship they don't want on this application) — these showed up as
+extra "Professional Experience N" / "Education N" / "Languages N" blocks
+beyond what the saved profile has entries for.
+
+- New popup button, **"Remove Extra Entries"**, with an inline confirmation
+  panel (not a native `confirm()` dialog — those are unreliable inside an
+  extension popup, which is a small, easily-defocused window). Clicking
+  through it finds every rendered block whose number is beyond the saved
+  profile's entry count for that section, and clicks that block's own
+  "Delete"/"Remove" button, highest-numbered block first so earlier
+  deletions can't shift the numbering out from under a later one. If the
+  page raises its own confirmation prompt for a delete, the user still
+  confirms that themselves — we don't try to auto-dismiss it.
+- This is a separate, deliberate action from Fill Application, never done
+  automatically as a side effect of a normal fill. An ordinary Fill now
+  does flag when extra entries exist (`N extra workExperience entries
+  beyond your saved profile — use "Remove Extra Entries" to delete them`),
+  but doesn't delete anything on its own.
+- Fixed a related bug surfaced while building this: a section's own bare
+  heading ("Education", with no number) matches the same pattern as its
+  first numbered block ("Education 1"), both resolving to entry #1 — so
+  every section was being double-counted by one. Harmless for filling
+  (both resolve to the same entry index), but it broke the new cleanup
+  logic (duplicate "block" entries) and inflated the "N more entries aren't
+  shown yet" counts. Fixed by de-duplicating headings that resolve to the
+  same section + entry number, keeping the more specific (later, numbered)
+  one.
+
 ## v0.6.0 — Fix repeated-section misassignment; override resume-parsed values
 
 Two related bugs, both in the Workday-style repeated-section logic

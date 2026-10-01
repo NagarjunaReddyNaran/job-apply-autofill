@@ -78,6 +78,16 @@
           });
         return true; // async response
       }
+      if (message.type === "CLEANUP_EXTRA") {
+        window.getProfileForContentScript()
+          .then((profile) => window.JobApplyAutofill.cleanupExtraEntries(profile))
+          .then((result) => sendResponse(result))
+          .catch((err) => {
+            console.warn("[JobApplyAutofill] cleanup failed:", err);
+            sendResponse({ removed: [], notRemovable: [], error: String(err) });
+          });
+        return true;
+      }
       if (message.type === "UNDO") {
         try {
           window.JobApplyAutofill.undoAutofill();

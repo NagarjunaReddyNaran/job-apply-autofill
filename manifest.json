@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "JobApply Autofill",
-  "version": "0.6.0",
+  "version": "0.7.0",
   "description": "Detects and fills common fields on job application forms. Never auto-submits. Asks for permission per-site rather than on install.",
   "permissions": ["storage", "scripting", "activeTab", "tabs", "webNavigation"],
   "optional_host_permissions": ["<all_urls>"],
