@@ -36,7 +36,17 @@
       key: "languages",
       heading: /^languages?\s*(\d+)?$/i,
       patterns: {
-        language: [/^\s*language\s*\*?\s*$/i],
+        // Anchored to the START only (not both ends): a <select>'s own
+        // label text also includes its option list ("Language * Select One
+        // English French Spanish …"), so a fully-anchored exact-match
+        // pattern never matches it at all. But an unanchored /\blanguage\b/
+        // is too loose the other way -- it also matches the "fluent"
+        // checkbox's own label ("I am fluent in this language."), since
+        // that sentence happens to contain the word "language" too, and
+        // "language" is checked before "fluent" below. Anchoring to the
+        // start keeps it matching the field's own label ("Language ...")
+        // without matching a sentence that merely mentions the word.
+        language: [/^\s*language\b/i],
         fluent: [/\bfluent\b/i],
         comprehension: [/\bcomprehension\b/i],
         overall: [/\boverall\b/i],
@@ -92,13 +102,31 @@
         const anchorEl = field.kind === "radio-group" ? field.elements[0] : field.element;
         if (!isBetween(anchorEl, heading.element, nextHeading)) continue;
 
-        const signalText = [field.signals.labelText, field.signals.nearbyText, field.signals.placeholder, field.signals.ariaLabel]
-          .filter(Boolean);
+        // Match on the field's OWN label/placeholder/aria-label first.
+        // nearbyText is deliberately excluded here: getNearbyText() walks up
+        // several ancestor levels and, inside one of these tightly-packed
+        // "entry" blocks, that walk picks up EVERY sibling field's label
+        // text too -- not just this field's own. If we let nearbyText vote
+        // on equal footing, a field like "Company" ends up with "Job Title"
+        // in its signal text (from its neighbor) and can match the wrong
+        // localKey before its own, correct, label is even considered. Only
+        // fall back to nearbyText (low-confidence, whole-block context) if
+        // none of the field's own direct signals match anything at all.
+        const ownSignals = [field.signals.labelText, field.signals.placeholder, field.signals.ariaLabel].filter(Boolean);
+        const fallbackSignals = [field.signals.nearbyText].filter(Boolean);
         let localKey = null;
         for (const [key, patterns] of Object.entries(heading.def.patterns)) {
-          if (signalText.some((text) => patterns.some((p) => p.test(text)))) {
+          if (ownSignals.some((text) => patterns.some((p) => p.test(text)))) {
             localKey = key;
             break;
+          }
+        }
+        if (!localKey) {
+          for (const [key, patterns] of Object.entries(heading.def.patterns)) {
+            if (fallbackSignals.some((text) => patterns.some((p) => p.test(text)))) {
+              localKey = key;
+              break;
+            }
           }
         }
         if (localKey && !assignments.has(field)) {

@@ -174,7 +174,8 @@
     }
   }
 
-  function writeValue(field, rawValue, label, confidence, summary) {
+  function writeValue(field, rawValue, label, confidence, summary, opts = {}) {
+    const { overwriteMismatched = false } = opts;
     const hasValue = rawValue !== "" && rawValue !== null && rawValue !== undefined;
 
     if (field.kind === "text") {
@@ -188,11 +189,26 @@
       // Compare loosely (trim + case-insensitive) so a value the SITE ITSELF
       // already filled in (e.g. Workday's own "autofill from resume" step)
       // that's effectively the same as our profile's value counts as
-      // correctly filled, not a mismatch needing review. We still never
-      // overwrite it in that case -- there's no need to, and touching a
-      // field the page already populated risks disrupting its own state.
+      // correctly filled, not a mismatch needing review.
       const normalize = (v) => String(v).trim().toLowerCase();
       if (existingRaw && normalize(existingRaw) !== normalize(rawValue)) {
+        if (overwriteMismatched) {
+          // Repeated-section fields (work history / education / languages)
+          // are explicitly the fields the user maintains in their saved
+          // profile for exactly this purpose -- and Workday's own "Autofill
+          // with Resume" step commonly pre-fills these same boxes with its
+          // own (often mis-parsed or mis-ordered) guess from the resume
+          // file. Deferring to "existing value present" here means our
+          // extension silently does nothing and the page's resume-parsed
+          // guess is what ends up submitted -- which is the bug being
+          // fixed. So for these fields specifically, the saved profile
+          // entry wins: clear the field and write our value over it.
+          window.JobApplyDom.setNativeValue(field.element, "");
+          window.JobApplyDom.setNativeValue(field.element, String(rawValue));
+          window.JobApplyDom.highlight(field.element, "filled");
+          summary.filled.push({ label, confidence, note: "replaced resume-parsed value" });
+          return;
+        }
         window.JobApplyDom.highlight(field.element, "review");
         summary.skipped.push({ label, reason: "existing value present" });
         return;
@@ -284,7 +300,13 @@
           if (field.kind === "custom-combobox") {
             await writeComboboxValue(field, entry[assignment.localKey], label, 0.9, summary);
           } else {
-            writeValue(field, entry[assignment.localKey], label, 0.9, summary);
+            // overwriteMismatched: true -- Workday's "Autofill with Resume"
+            // step often pre-fills these exact boxes with its own parse of
+            // the uploaded resume, which can be wrong, truncated, or placed
+            // in a different block than our saved profile entry. The saved
+            // profile is what the user maintains for this purpose, so it
+            // takes priority over whatever the page guessed here.
+            writeValue(field, entry[assignment.localKey], label, 0.9, summary, { overwriteMismatched: true });
           }
           continue;
         }

@@ -3,6 +3,43 @@
 A Chrome Manifest V3 extension that detects and fills common job application
 fields. It never clicks Submit/Apply/Next for you.
 
+## v0.6.0 — Fix repeated-section misassignment; override resume-parsed values
+
+Two related bugs, both in the Workday-style repeated-section logic
+(Professional Experience N / Education N / Languages N):
+
+**1. Fields inside a block could be assigned the wrong local field.**
+Each field's section-local key (`jobTitle`, `company`, `location`, …) was
+being matched against `nearbyText` on equal footing with the field's own
+label — and `nearbyText` walks up several ancestor levels, which inside a
+tightly-packed block picks up **every sibling field's label text too**, not
+just the field's own. In practice this meant most or all fields in a block
+could resolve to the same local key (usually whichever key happened to be
+checked first), scrambling where values landed. Fixed by matching a field's
+own label/placeholder/aria-label first, and falling back to the (noisy)
+`nearbyText` only if none of a field's own signals match anything. Also
+fixed the `language` select's pattern, which was fully anchored
+(`^...$`) and so could never match its own label (a `<select>`'s label text
+includes its rendered option list) — and separately fixed a case where a
+loosened version of that same pattern could match the unrelated "I am
+fluent in this language" checkbox label instead.
+
+**2. Workday's "Autofill with Resume" step pre-fills these same boxes.**
+When Workday parses an uploaded resume, it fills Professional
+Experience/Education blocks with its own guess *before* our extension runs.
+Previously, our "don't clobber an existing value that looks different"
+safety check (meant to protect fields the user had already typed into)
+also applied here — so if Workday's resume parse didn't exactly match the
+profile's saved entry, we left Workday's guess in place and just flagged it
+for manual review instead of actually filling it. For these specific
+repeated-section fields only, the saved profile entry is exactly what the
+user maintains it for, so it now wins: a mismatched existing value is
+cleared and overwritten rather than skipped. Ordinary flat fields (name,
+email, phone, etc.) are unaffected and keep the original cautious
+behavior — if the page already filled one in correctly, it's left alone;
+if it's filled in with something that looks different, it's still flagged
+for review rather than silently overwritten.
+
 ## v0.5.0 — Custom dropdown ("combobox") filling
 
 Workday and similar ATS UIs often render a "select"-like field as a
