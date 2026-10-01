@@ -4,9 +4,11 @@
 // which detected field belongs to which numbered block, so it can be matched
 // against the corresponding entry in profile.workExperience / .education / .languages.
 //
-// This does NOT click "Add Another" or any other button. If the profile has
-// more saved entries than are currently rendered as blocks, the autofill
-// engine reports that separately so the user can add a block and re-run Fill.
+// This module itself does NOT click any button -- it only detects headings,
+// field assignments, and the Add/Add Another/Delete controls for each
+// section. autofill-engine.js is what actually clicks them (adding blocks to
+// match the saved profile's entry count, or removing extra ones), using what
+// this module finds.
 
 (function () {
   const SECTION_DEFS = [
@@ -115,12 +117,24 @@
 
     headings.forEach((heading, idx) => {
       const nextHeading = headings[idx + 1]?.element || null;
+
+      const fieldsInBlock = fields.filter((field) => {
+        const anchorEl = field.kind === "radio-group" ? field.elements[0] : field.element;
+        return isBetween(anchorEl, heading.element, nextHeading);
+      });
+      // A heading with NO fields under it isn't a rendered block -- it's
+      // just the section's bare title before any entry has been added yet
+      // (e.g. "Education" with only an "Add" button beneath it, zero
+      // entries). The (\d+)? in the heading pattern is optional so a
+      // single-entry section with no visible number still matches, but
+      // that same bare match fires on an empty section too -- without this
+      // check it would get counted as "1 block already there", which would
+      // wrongly skip adding a block for a saved profile entry.
+      if (!fieldsInBlock.length) return;
+
       blocksFound[heading.sectionKey].push(heading.entryNumber);
 
-      for (const field of fields) {
-        const anchorEl = field.kind === "radio-group" ? field.elements[0] : field.element;
-        if (!isBetween(anchorEl, heading.element, nextHeading)) continue;
-
+      for (const field of fieldsInBlock) {
         // Match on the field's OWN label/placeholder/aria-label first.
         // nearbyText is deliberately excluded here: getNearbyText() walks up
         // several ancestor levels and, inside one of these tightly-packed
@@ -162,7 +176,10 @@
       const lastHeading = relevantHeadings[relevantHeadings.length - 1].element;
       let candidate = null;
       allButtons.forEach((btn) => {
-        if (!/^add another\b/i.test(textOf(btn))) return;
+        // A section with zero entries so far often labels its button plain
+        // "Add" rather than "Add Another" (that label only shows up once at
+        // least one entry already exists) -- match both.
+        if (!/^add(\s+another)?\b/i.test(textOf(btn))) return;
         if (isBetween(btn, lastHeading, null) && !candidate) candidate = btn;
       });
       addAnotherButtons[def.key] = candidate;

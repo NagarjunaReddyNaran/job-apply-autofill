@@ -267,9 +267,101 @@
     }
   }
 
+  // --- Adding blocks to match the saved profile's entry count ---------------
+  //
+  // Unlike removing extra entries (cleanupExtraEntries, a separate explicit
+  // action -- deleting is destructive), clicking "Add"/"Add Another" is
+  // purely additive and easily undone (it just reveals another empty block),
+  // so Fill Application does this on its own rather than making the user
+  // click it manually first and re-run Fill.
+
+  function maxRenderedCount(sections, sectionKey) {
+    const nums = sections.blocksFound[sectionKey] || [];
+    return nums.length ? Math.max(...nums) : 0;
+  }
+
+  function waitForBlockCountIncrease(sectionKey, previousMax, timeoutMs = 2000) {
+    return new Promise((resolve) => {
+      const start = performance.now();
+      function check() {
+        let sections;
+        try {
+          const fields = window.JobApplyDetector.detectFields(document);
+          sections = window.JobApplySections.detectSections(document, fields);
+        } catch {
+          resolve(false);
+          return;
+        }
+        if (maxRenderedCount(sections, sectionKey) > previousMax) {
+          resolve(true);
+          return;
+        }
+        if (performance.now() - start >= timeoutMs) {
+          resolve(false);
+          return;
+        }
+        requestAnimationFrame(check);
+      }
+      check();
+    });
+  }
+
+  async function ensureSectionBlockCounts(profile) {
+    const notices = [];
+    for (const sectionKey of ["workExperience", "education", "languages"]) {
+      const savedCount = (profile[sectionKey] || []).length;
+      if (!savedCount) continue;
+
+      // Re-detect fresh on every iteration: clicking "Add" changes the DOM
+      // (and can relabel the button from "Add" to "Add Another"), so a
+      // snapshot taken before the first click would go stale immediately.
+      let safetyCounter = 0;
+      while (safetyCounter < 10) {
+        let fields, sections;
+        try {
+          fields = window.JobApplyDetector.detectFields(document);
+          sections = window.JobApplySections.detectSections(document, fields);
+        } catch (err) {
+          console.warn("[JobApplyAutofill] section re-detection failed while adding blocks:", err);
+          break;
+        }
+
+        const renderedCount = maxRenderedCount(sections, sectionKey);
+        if (renderedCount >= savedCount) break;
+
+        const btn = sections.addAnotherButtons[sectionKey];
+        if (!btn) {
+          notices.push(
+            `Couldn't find an "Add"/"Add Another" control to add ${savedCount - renderedCount} more saved ${sectionKey} ${savedCount - renderedCount === 1 ? "entry" : "entries"} — add ${savedCount - renderedCount === 1 ? "it" : "them"} manually, then run Fill Application again.`
+          );
+          break;
+        }
+
+        dispatchClick(btn);
+        const grew = await waitForBlockCountIncrease(sectionKey, renderedCount);
+        if (!grew) {
+          notices.push(
+            `Clicked "Add" for ${sectionKey} but didn't see a new block appear — add the remaining ${savedCount - renderedCount} ${savedCount - renderedCount === 1 ? "entry" : "entries"} manually, then run Fill Application again.`
+          );
+          break;
+        }
+        safetyCounter++;
+      }
+    }
+    return notices;
+  }
+
   async function runAutofill(profile) {
-    const fields = window.JobApplyDetector.detectFields(document);
     const summary = { filled: [], skipped: [], unknown: [], fileFields: [], errors: [], sectionNotices: [] };
+
+    try {
+      const addNotices = await ensureSectionBlockCounts(profile);
+      summary.sectionNotices.push(...addNotices);
+    } catch (err) {
+      console.warn("[JobApplyAutofill] failed to add missing section blocks:", err);
+    }
+
+    const fields = window.JobApplyDetector.detectFields(document);
 
     let sections = { assignments: new Map(), blocksFound: {}, addAnotherButtons: {} };
     try {
@@ -340,18 +432,17 @@
     }
 
     try {
+      // Note: the "profile has MORE saved entries than are rendered" case is
+      // now handled proactively by ensureSectionBlockCounts() above (it
+      // clicks Add/Add Another itself and reports a notice if that fails) --
+      // so by this point renderedCount should already match savedCount
+      // unless that failed. Only the opposite case -- more blocks rendered
+      // than saved (extra resume-parsed entries) -- still needs flagging
+      // here, since removing entries is a separate, deliberate action.
       for (const sectionKey of ["workExperience", "education", "languages"]) {
         const savedCount = (profile[sectionKey] || []).length;
-        const renderedNumbers = sections.blocksFound[sectionKey] || [];
-        const renderedCount = renderedNumbers.length ? Math.max(...renderedNumbers) : 0;
-        if (savedCount > renderedCount) {
-          const missing = savedCount - renderedCount;
-          summary.sectionNotices.push(
-            `${missing} more saved ${sectionKey} ${missing === 1 ? "entry isn't" : "entries aren't"} shown yet — click "Add Another" under that section, then run Fill Application again.`
-          );
-          const btn = sections.addAnotherButtons[sectionKey];
-          if (btn) window.JobApplyDom.highlight(btn, "review");
-        } else if (renderedCount > savedCount) {
+        const renderedCount = maxRenderedCount(sections, sectionKey);
+        if (renderedCount > savedCount) {
           // More blocks are rendered than the profile has saved entries for
           // -- typically Workday's "Autofill with Resume" step parsed more
           // jobs/schools/languages out of the resume than the user keeps in

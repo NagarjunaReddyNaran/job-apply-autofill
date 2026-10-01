@@ -3,6 +3,33 @@
 A Chrome Manifest V3 extension that detects and fills common job application
 fields. It never clicks Submit/Apply/Next for you.
 
+## v0.8.0 — Auto-add blocks to match saved profile entries
+
+The flip side of removing extra entries: when the profile has MORE saved
+Work Experience/Education/Language entries than are currently rendered as
+blocks (including a section with zero entries so far, showing only an
+"Add" button), Fill Application now clicks "Add"/"Add Another" itself —
+the right number of times, waiting for each new block to actually render
+before clicking again — then fills every block, instead of requiring a
+manual click + re-run first.
+
+This is unlike removing extra entries: clicking "Add" is purely additive
+and trivially undoable (it just reveals another empty block), so it's safe
+to do automatically as part of an ordinary Fill, with no confirmation
+needed. If a section's own Add control can't be found, or clicking it
+doesn't produce a new block, that's reported as a notice instead of
+silently giving up.
+
+Fixed a bug surfaced while building this: `blocksFound` counted a section's
+heading as a rendered block even when there were zero form fields under it
+— so a brand-new, empty section (just "Education" with an "Add" button,
+no entries yet) looked like it already had 1 block, which would have
+skipped adding one entirely. Now a heading only counts if there's at least
+one real field under it. Also widened the Add-button match to include a
+plain "Add" label, not just "Add Another" — Workday (and others) tend to
+label it "Add" when a section has no entries yet and switch to "Add
+Another" once it has at least one.
+
 ## v0.7.0 — Remove extra resume-parsed entries
 
 Workday's "Autofill with Resume" step can parse MORE jobs/schools/languages
